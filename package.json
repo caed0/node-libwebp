@@ -1,0 +1,10 @@
+{
+  "name": "node-libwebp",
+  "version": "0.0.1",
+  "author": "caed0",
+  "description": "Wrapper for libwebp library",
+  "main": "index.js",
+  "scripts": {
+    "postinstall": "node install.js"
+  }
+}

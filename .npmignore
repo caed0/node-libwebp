@@ -1,0 +1,6 @@
+node_modules/
+.idea/
+libwebp/
+.gitignore
+.npmignore
+package-lock.json
