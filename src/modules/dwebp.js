@@ -1,124 +1,140 @@
 const { execSync } = require('child_process');
 const path = require('path');
-const { validateOptions } = require('../utils/validate');
+const os = require("os");
+const fs = require("fs");
 
-const VALID_OPTIONS = {
-    format: 'string',
-    nofancy: 'boolean',
-    nofilter: 'boolean',
-    nodither: 'boolean',
-    dither: 'number',
-    alpha_dither: 'boolean',
-    mt: 'boolean',
-    crop: 'object',
-    resize: 'object',
-    flip: 'boolean',
-    alpha: 'boolean',
-    noasm: 'boolean'
-};
+module.exports = (dwebp) =>
 
-const VALID_FORMATS = ['pam', 'ppm', 'bmp', 'tiff', 'pgm', 'yuv', 'png'];
+    /**
+     * @typedef {Object} CropOptions
+     * @property {number} x - X-Coodinate of the top-left corner.
+     * @property {number} y - Y-Coodinate of the top-left corner.
+     * @property {number} width - Width of the cropped image.
+     * @property {number} height - Width of the cropped image.
+     */
 
-const VALID_CROP = {
-    x: 'number',
-    y: 'number',
-    w: 'number',
-    h: 'number'
-}
+    /**
+     * @typedef {Object} ResizeOptions
+     * @property {number} width - New width of the image.
+     * @property {number} height - New height of the image.
+     */
 
-const VALID_RESIZE = {
-    w: 'number',
-    h: 'number'
-}
+    /**
+     * @typedef {Object} DitherOptions
+     * @property {number} [strength] - Dither strength. (0=Off, 100=Full)
+     * @property {boolean} [alpha_dither] - Use alpha dithering.
+     * @property {boolean} [nodither] - Disable dithering. (Overrides other dither options)
+     */
 
-module.exports = (dwebp) => (inputFile, outputFile = undefined, options = {}) => {
-    const { format, nofancy, nofilter, nodither, dither, alpha_dither, mt, crop, resize, flip, alpha, noasm } = options;
+    /**
+     * @typedef {"pam" | "ppm" | "bmp" | "tiff" | "pgm" | "yuv" | "png"} Format
+     */
 
-    let invalid = validateOptions(options, VALID_OPTIONS);
-    if (invalid)
-        throw new Error(invalid);
-
-    const ext = path.extname(outputFile).slice(1);
-    if (format && !VALID_FORMATS.includes(format))
-        throw new Error(`Invalid output file format: ${ext}`);
-
-    if (dither && (dither > 100 || dither < 0))
-        throw new Error(`Dithering strength out of range: expected 0 ... 100, got ${dither}`);
-
-    invalid = validateOptions(crop, VALID_CROP);
-    if (invalid) throw new Error();
+    /**
+     * @typedef {Object} DwebpOptions
+     * @property {Format} [format] - Format to convert the image to. (Default: "png")
+     * @property {CropOptions} [crop] - Crop the image.
+     * @property {ResizeOptions} [resize] - Resize the image.
+     * @property {boolean} [flip] - Flip the image vertically.
+     * @property {DitherOptions} [dither] - Dithering options.
+     * @property {boolean} [nofancy] - Disables fancy YUV420-to-RGB conversion.
+     * @property {boolean} [nofilter] - Disables in-loop filtering.
+     * @property {boolean} [alpha] - Save the alpha plane.
+     * @property {boolean} [mt] - Use multi-threading.
+     */
 
 
+    /**
+     * Konvertiert eine WebP-Datei in ein anderes Format.
+     *
+     * @param {string} input - Pfad zur Eingabedatei.
+     * @param {string} [output] - Pfad zur Ausgabedatei.
+     * @param {DwebpOptions?} [options] - Konfigurationsobjekt mit Einstellungen.
+     */
 
+(input, output, options) => {
+        const {
+                format = "png",
+                crop,
+                resize,
+                flip,
+                dither,
+                nofancy,
+                nofilter,
+                alpha,
+                mt,
+                noasm
+        } = options;
 
+        let command = `${dwebp} "${input}" -quite`;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    const args = [inputFile, '-quite'];
-
-    if (outputFile) {
-        const ext = path.extname(outputFile).slice(1);
-        if (!validExtensions.includes(ext)) {
-            throw new Error(`Invalid output file format: ${ext}`);
+        if (format && format !== "png") {
+            command += ` -${format}`;
         }
 
-        switch (ext) {
-            case 'pam':
-                args.push('-pam');
-                break;
-            case 'ppm':
-                args.push('-ppm');
-                break;
-            case 'bmp':
-                args.push('-bmp');
-                break;
-            case 'tif':
-            case 'tiff':
-                args.push('-tiff');
-                break;
-            case 'pgm':
-                args.push('-pgm');
-                break;
-            case 'yuv':
-                args.push('-yuv');
-                break;
-            default:
-                break;
+        if (crop) {
+            command += ` -crop ${crop.x} ${crop.y} ${crop.width} ${crop.height}`;
         }
-    } else {
-        throw new Error('Output file must be specified');
-    }
 
-    if (options.nofancy) args.push('-nofancy');
-    if (options.nofilter) args.push('-nofilter');
-    if (options.nodither) {
-        args.push('-nodither');
-        options.dither = undefined;
-        options.alpha_dither = false;
-    }
-    if (options.dither !== undefined) args.push(`-dither`, options.dither);
-    if (options.alpha_dither) args.push('-alpha_dither');
-    if (options.mt) args.push('-mt');
-    if (options.crop) args.push(`-crop`, options.crop.x, options.crop.y, options.crop.w, options.crop.h);
-    if (options.resize) args.push(`-resize`, options.resize.w, options.resize.h);
-    if (options.flip) args.push('-flip');
-    if (options.alpha) args.push('-alpha');
-    if (options.noasm) args.push('-noasm');
+        if (resize) {
+            command += ` -resize ${resize.width} ${resize.height}`;
+        }
 
-    args.push('-o', outputFile);
-    execSync(dwebp, args, (error) => { if (error) console.error('Error executing dwebp command:', error); });
+        if (flip) {
+            command += " -flip";
+        }
+
+        if (dither) {
+            if (dither.nodither) {
+                command += " -nodither";
+            } else {
+                if (dither.strength) {
+                        command += ` -dither ${dither.strength}`;
+                }
+
+                if (dither.alpha_dither) {
+                    command += " -alpha_dither";
+                }
+            }
+        }
+
+        if (nofancy) {
+            command += " -nofancy";
+        }
+
+        if (nofilter) {
+            command += " -nofilter";
+        }
+
+        if (alpha) {
+            command += " -alpha";
+        }
+
+        if (mt) {
+            command += " -mt";
+        }
+
+        let temp;
+        if (output) {
+            command += ` -o "${output}"`;
+        } else {
+            temp = `${os.tmpdir()}/${Date.now()}.${format}`;
+            command += ` -o ${temp}`;
+        }
+
+        execSync(command);
+
+        if (output) {
+            if(fs.existsSync(output)) {
+                return output;
+            } else {
+                throw new Error("Output file not found");
+            }
+        } else {
+            if (fs.existsSync(temp)) {
+                return fs.readFileSync(temp);
+            } else {
+                throw new Error("Output file not found");
+            }
+        }
 }
